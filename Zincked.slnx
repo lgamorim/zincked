@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Zincked.App/Zincked.App.csproj" />
+    <Project Path="src/Zincked.Core/Zincked.Core.csproj" />
+  </Folder>
+  <Folder Name="/test/">
+    <Project Path="test/Zincked.App.Tests/Zincked.App.Tests.csproj" />
+    <Project Path="test/Zincked.Core.Tests/Zincked.Core.Tests.csproj" />
+  </Folder>
+</Solution>
