@@ -94,6 +94,37 @@ public sealed class ApplicationTests
     }
 
     [Theory]
+    [InlineData("both", "<->")]
+    [InlineData("up", "->")]
+    [InlineData("down", "<-")]
+    public void Run_SummaryArrow_ReflectsMode(string mode, string expectedArrow)
+    {
+        var synchronizer = Substitute.For<IFolderSynchronizer>();
+        synchronizer.Synchronize(GameRoot, CloudRoot, Arg.Any<SyncMode>()).Returns(new SyncResult([]));
+        var fileSystem = new MockFileSystem();
+        fileSystem.AddDirectory(GameRoot);
+        var application = NewApplication(synchronizer, fileSystem, out var output, out _);
+
+        application.Run([GameRoot, CloudRoot, "--mode", mode]);
+
+        Assert.Contains($"Synchronized '{GameRoot}' {expectedArrow} '{CloudRoot}'.", output.ToString());
+    }
+
+    [Fact]
+    public void Run_SummaryArrow_DefaultsToBidirectional()
+    {
+        var synchronizer = Substitute.For<IFolderSynchronizer>();
+        synchronizer.Synchronize(GameRoot, CloudRoot).Returns(new SyncResult([]));
+        var fileSystem = new MockFileSystem();
+        fileSystem.AddDirectory(GameRoot);
+        var application = NewApplication(synchronizer, fileSystem, out var output, out _);
+
+        application.Run([GameRoot, CloudRoot]);
+
+        Assert.Contains($"Synchronized '{GameRoot}' <-> '{CloudRoot}'.", output.ToString());
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(3)]

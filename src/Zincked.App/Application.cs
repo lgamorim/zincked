@@ -80,17 +80,26 @@ public sealed class Application
         _fileSystem.Directory.CreateDirectory(cloudFolder);
 
         SyncResult result = _synchronizer.Synchronize(gameFolder, cloudFolder, parsed.Mode);
-        WriteSummary(result, gameFolder, cloudFolder);
+        WriteSummary(result, gameFolder, cloudFolder, parsed.Mode);
         return SuccessExitCode;
     }
 
-    private void WriteSummary(SyncResult result, string gameFolder, string cloudFolder)
+    private void WriteSummary(SyncResult result, string gameFolder, string cloudFolder, SyncMode mode)
     {
-        _output.WriteLine($"Synchronized '{gameFolder}' <-> '{cloudFolder}'.");
+        _output.WriteLine($"Synchronized '{gameFolder}' {DirectionArrow(mode)} '{cloudFolder}'.");
         _output.WriteLine($"  Copied to cloud: {result.CopiedToSecond}");
         _output.WriteLine($"  Copied to game:  {result.CopiedToFirst}");
         _output.WriteLine($"  Already in sync: {result.UpToDate}");
     }
+
+    // The game folder is on the left and the cloud folder on the right, so '->' reads as
+    // "into the cloud" and '<-' as "into the game folder".
+    private static string DirectionArrow(SyncMode mode) => mode switch
+    {
+        SyncMode.FirstToSecond => "->",
+        SyncMode.SecondToFirst => "<-",
+        _ => "<->",
+    };
 
     private static void WriteUsage(TextWriter writer)
     {
