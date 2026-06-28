@@ -1,5 +1,6 @@
 using Xunit;
 using Zincked.App;
+using Zincked.Core;
 
 namespace Zincked.App.Tests;
 
@@ -13,6 +14,74 @@ public sealed class CommandLineParserTests
         Assert.Equal(@"C:\game", result.GameFolder);
         Assert.Equal(@"C:\cloud", result.CloudFolder);
         Assert.False(result.HasError);
+    }
+
+    [Fact]
+    public void Parse_NoModeOption_DefaultsToBidirectional()
+    {
+        CommandLineParseResult result = CommandLineParser.Parse([@"C:\game", @"C:\cloud"]);
+
+        Assert.Equal(SyncMode.Bidirectional, result.Mode);
+    }
+
+    [Theory]
+    [InlineData("both", SyncMode.Bidirectional)]
+    [InlineData("up", SyncMode.FirstToSecond)]
+    [InlineData("down", SyncMode.SecondToFirst)]
+    [InlineData("UP", SyncMode.FirstToSecond)]     // case-insensitive
+    [InlineData("Down", SyncMode.SecondToFirst)]
+    public void Parse_ModeOption_MapsToSyncMode(string value, SyncMode expected)
+    {
+        CommandLineParseResult result = CommandLineParser.Parse([@"C:\game", @"C:\cloud", "--mode", value]);
+
+        Assert.False(result.HasError);
+        Assert.Equal(expected, result.Mode);
+    }
+
+    [Theory]
+    [InlineData("-m", "up")]
+    [InlineData("--mode=up", "")]
+    public void Parse_ModeOption_AcceptsAliasAndInlineSyntax(string token, string value)
+    {
+        string[] args = value.Length == 0
+            ? [@"C:\game", @"C:\cloud", token]
+            : [@"C:\game", @"C:\cloud", token, value];
+
+        CommandLineParseResult result = CommandLineParser.Parse(args);
+
+        Assert.False(result.HasError);
+        Assert.Equal(SyncMode.FirstToSecond, result.Mode);
+    }
+
+    [Fact]
+    public void Parse_UnknownModeValue_Fails()
+    {
+        CommandLineParseResult result = CommandLineParser.Parse([@"C:\game", @"C:\cloud", "--mode", "sideways"]);
+
+        Assert.True(result.HasError);
+        Assert.Contains("Unknown sync mode", result.ErrorMessage);
+    }
+
+    [Fact]
+    public void Parse_DuplicateMode_Fails()
+    {
+        CommandLineParseResult result = CommandLineParser.Parse(
+            [@"C:\game", @"C:\cloud", "--mode", "up", "--mode", "down"]);
+
+        Assert.True(result.HasError);
+    }
+
+    [Theory]
+    [InlineData("--mode=")]                       // empty inline value
+    [InlineData("--mode", "--game", @"C:\g")]      // value looks like another option
+    public void Parse_ModeMissingValue_Fails(params string[] modeArgs)
+    {
+        string[] args = [@"C:\game", @"C:\cloud", .. modeArgs];
+
+        CommandLineParseResult result = CommandLineParser.Parse(args);
+
+        Assert.True(result.HasError);
+        Assert.Contains("Missing value", result.ErrorMessage);
     }
 
     [Theory]

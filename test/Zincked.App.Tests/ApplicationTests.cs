@@ -42,6 +42,21 @@ public sealed class ApplicationTests
     }
 
     [Fact]
+    public void Run_ModeOption_IsForwardedToSynchronizer()
+    {
+        var synchronizer = Substitute.For<IFolderSynchronizer>();
+        synchronizer.Synchronize(GameRoot, CloudRoot, SyncMode.FirstToSecond).Returns(new SyncResult([]));
+        var fileSystem = new MockFileSystem();
+        fileSystem.AddDirectory(GameRoot);
+        var application = NewApplication(synchronizer, fileSystem, out _, out _);
+
+        int exitCode = application.Run([GameRoot, CloudRoot, "--mode", "up"]);
+
+        Assert.Equal(Application.SuccessExitCode, exitCode);
+        synchronizer.Received(1).Synchronize(GameRoot, CloudRoot, SyncMode.FirstToSecond);
+    }
+
+    [Fact]
     public void Run_MissingCloudFolder_IsCreatedBeforeSync()
     {
         var synchronizer = Substitute.For<IFolderSynchronizer>();
@@ -76,6 +91,37 @@ public sealed class ApplicationTests
         Assert.Contains("Copied to cloud: 1", text);
         Assert.Contains("Copied to game:  1", text);
         Assert.Contains("Already in sync: 1", text);
+    }
+
+    [Theory]
+    [InlineData("both", "<->")]
+    [InlineData("up", "->")]
+    [InlineData("down", "<-")]
+    public void Run_SummaryArrow_ReflectsMode(string mode, string expectedArrow)
+    {
+        var synchronizer = Substitute.For<IFolderSynchronizer>();
+        synchronizer.Synchronize(GameRoot, CloudRoot, Arg.Any<SyncMode>()).Returns(new SyncResult([]));
+        var fileSystem = new MockFileSystem();
+        fileSystem.AddDirectory(GameRoot);
+        var application = NewApplication(synchronizer, fileSystem, out var output, out _);
+
+        application.Run([GameRoot, CloudRoot, "--mode", mode]);
+
+        Assert.Contains($"Synchronized '{GameRoot}' {expectedArrow} '{CloudRoot}'.", output.ToString());
+    }
+
+    [Fact]
+    public void Run_SummaryArrow_DefaultsToBidirectional()
+    {
+        var synchronizer = Substitute.For<IFolderSynchronizer>();
+        synchronizer.Synchronize(GameRoot, CloudRoot).Returns(new SyncResult([]));
+        var fileSystem = new MockFileSystem();
+        fileSystem.AddDirectory(GameRoot);
+        var application = NewApplication(synchronizer, fileSystem, out var output, out _);
+
+        application.Run([GameRoot, CloudRoot]);
+
+        Assert.Contains($"Synchronized '{GameRoot}' <-> '{CloudRoot}'.", output.ToString());
     }
 
     [Theory]

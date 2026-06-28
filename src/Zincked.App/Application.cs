@@ -79,34 +79,44 @@ public sealed class Application
         // run succeeds.
         _fileSystem.Directory.CreateDirectory(cloudFolder);
 
-        SyncResult result = _synchronizer.Synchronize(gameFolder, cloudFolder);
-        WriteSummary(result, gameFolder, cloudFolder);
+        SyncResult result = _synchronizer.Synchronize(gameFolder, cloudFolder, parsed.Mode);
+        WriteSummary(result, gameFolder, cloudFolder, parsed.Mode);
         return SuccessExitCode;
     }
 
-    private void WriteSummary(SyncResult result, string gameFolder, string cloudFolder)
+    private void WriteSummary(SyncResult result, string gameFolder, string cloudFolder, SyncMode mode)
     {
-        _output.WriteLine($"Synchronized '{gameFolder}' <-> '{cloudFolder}'.");
+        _output.WriteLine($"Synchronized '{gameFolder}' {DirectionArrow(mode)} '{cloudFolder}'.");
         _output.WriteLine($"  Copied to cloud: {result.CopiedToSecond}");
         _output.WriteLine($"  Copied to game:  {result.CopiedToFirst}");
         _output.WriteLine($"  Already in sync: {result.UpToDate}");
     }
+
+    // The game folder is on the left and the cloud folder on the right, so '->' reads as
+    // "into the cloud" and '<-' as "into the game folder".
+    private static string DirectionArrow(SyncMode mode) => mode switch
+    {
+        SyncMode.FirstToSecond => "->",
+        SyncMode.SecondToFirst => "<-",
+        _ => "<->",
+    };
 
     private static void WriteUsage(TextWriter writer)
     {
         writer.WriteLine("Zincked - two-way sync for game save folders.");
         writer.WriteLine();
         writer.WriteLine("Usage:");
-        writer.WriteLine("  Zincked <gameFolder> <cloudFolder>");
-        writer.WriteLine("  Zincked --game <gameFolder> --cloud <cloudFolder>");
+        writer.WriteLine("  Zincked <gameFolder> <cloudFolder> [--mode <both|up|down>]");
+        writer.WriteLine("  Zincked --game <gameFolder> --cloud <cloudFolder> [--mode <both|up|down>]");
         writer.WriteLine();
         writer.WriteLine("Options:");
-        writer.WriteLine("  -g, --game <path>    The local game folder.");
-        writer.WriteLine("  -c, --cloud <path>   The shared cloud folder.");
-        writer.WriteLine("  -h, --help           Show this help.");
+        writer.WriteLine("  -g, --game <path>         The local game folder.");
+        writer.WriteLine("  -c, --cloud <path>        The shared cloud folder.");
+        writer.WriteLine("  -m, --mode <both|up|down> Sync direction: both (default, two-way),");
+        writer.WriteLine("                            up (game -> cloud), down (cloud -> game).");
+        writer.WriteLine("  -h, --help                Show this help.");
         writer.WriteLine();
         writer.WriteLine("The folders may be given positionally or by option, in any order.");
-        writer.WriteLine("Both folders are synchronized in both directions; the newer copy of");
-        writer.WriteLine("each file wins. Files are never deleted.");
+        writer.WriteLine("The newer copy of each file wins, and files are never deleted.");
     }
 }

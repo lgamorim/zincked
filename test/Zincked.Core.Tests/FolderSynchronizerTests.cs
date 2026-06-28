@@ -281,4 +281,124 @@ public sealed class FolderSynchronizerTests
 
         Assert.ThrowsAny<ArgumentException>(() => synchronizer.Synchronize(folder!, CloudRoot));
     }
+
+    [Fact]
+    public void Synchronize_FirstToSecond_PushesNewFileButDoesNotPull()
+    {
+        var fileSystem = new MockFileSystem();
+        fileSystem.AddFile(@"C:\game\push.dat", MockFile.Text("g", Newer));
+        fileSystem.AddFile(@"C:\cloud\keep.dat", MockFile.Text("c", Newer));
+        var synchronizer = new FolderSynchronizer(fileSystem);
+
+        SyncResult result = synchronizer.Synchronize(GameRoot, CloudRoot, SyncMode.FirstToSecond);
+
+        Assert.True(fileSystem.FileExists(@"C:\cloud\push.dat"));   // pushed
+        Assert.False(fileSystem.FileExists(@"C:\game\keep.dat"));   // not pulled back
+        Assert.Equal(1, result.CopiedToSecond);
+        Assert.Equal(0, result.CopiedToFirst);
+    }
+
+    [Fact]
+    public void Synchronize_FirstToSecond_DoesNotOverwriteFirstWhenSecondIsNewer()
+    {
+        var fileSystem = new MockFileSystem();
+        fileSystem.AddFile(@"C:\game\save.dat", MockFile.Text("old", Older));
+        fileSystem.AddFile(@"C:\cloud\save.dat", MockFile.Text("new", Newer));
+        var synchronizer = new FolderSynchronizer(fileSystem);
+
+        SyncResult result = synchronizer.Synchronize(GameRoot, CloudRoot, SyncMode.FirstToSecond);
+
+        // The first (game) folder is never written to in this mode, even though cloud is newer.
+        Assert.Equal("old", fileSystem.File.ReadAllText(@"C:\game\save.dat"));
+        Assert.Equal(0, result.CopiedToFirst);
+        Assert.Equal(1, result.UpToDate);
+    }
+
+    [Fact]
+    public void Synchronize_FirstToSecond_OverwritesSecondWhenFirstIsNewer()
+    {
+        var fileSystem = new MockFileSystem();
+        fileSystem.AddFile(@"C:\game\save.dat", MockFile.Text("new", Newer));
+        fileSystem.AddFile(@"C:\cloud\save.dat", MockFile.Text("old", Older));
+        var synchronizer = new FolderSynchronizer(fileSystem);
+
+        synchronizer.Synchronize(GameRoot, CloudRoot, SyncMode.FirstToSecond);
+
+        Assert.Equal("new", fileSystem.File.ReadAllText(@"C:\cloud\save.dat"));
+    }
+
+    [Fact]
+    public void Synchronize_SecondToFirst_PullsNewFileButDoesNotPush()
+    {
+        var fileSystem = new MockFileSystem();
+        fileSystem.AddFile(@"C:\cloud\pull.dat", MockFile.Text("c", Newer));
+        fileSystem.AddFile(@"C:\game\keep.dat", MockFile.Text("g", Newer));
+        var synchronizer = new FolderSynchronizer(fileSystem);
+
+        SyncResult result = synchronizer.Synchronize(GameRoot, CloudRoot, SyncMode.SecondToFirst);
+
+        Assert.True(fileSystem.FileExists(@"C:\game\pull.dat"));    // pulled
+        Assert.False(fileSystem.FileExists(@"C:\cloud\keep.dat"));  // not pushed
+        Assert.Equal(1, result.CopiedToFirst);
+        Assert.Equal(0, result.CopiedToSecond);
+    }
+
+    [Fact]
+    public void Synchronize_SecondToFirst_DoesNotOverwriteSecondWhenFirstIsNewer()
+    {
+        var fileSystem = new MockFileSystem();
+        fileSystem.AddFile(@"C:\game\save.dat", MockFile.Text("new", Newer));
+        fileSystem.AddFile(@"C:\cloud\save.dat", MockFile.Text("old", Older));
+        var synchronizer = new FolderSynchronizer(fileSystem);
+
+        SyncResult result = synchronizer.Synchronize(GameRoot, CloudRoot, SyncMode.SecondToFirst);
+
+        Assert.Equal("old", fileSystem.File.ReadAllText(@"C:\cloud\save.dat"));
+        Assert.Equal(0, result.CopiedToSecond);
+        Assert.Equal(1, result.UpToDate);
+    }
+
+    [Fact]
+    public void Synchronize_SecondToFirst_OverwritesFirstWhenSecondIsNewer()
+    {
+        var fileSystem = new MockFileSystem();
+        fileSystem.AddFile(@"C:\game\save.dat", MockFile.Text("old", Older));
+        fileSystem.AddFile(@"C:\cloud\save.dat", MockFile.Text("new", Newer));
+        var synchronizer = new FolderSynchronizer(fileSystem);
+
+        SyncResult result = synchronizer.Synchronize(GameRoot, CloudRoot, SyncMode.SecondToFirst);
+
+        Assert.Equal("new", fileSystem.File.ReadAllText(@"C:\game\save.dat"));
+        Assert.Equal(1, result.CopiedToFirst);
+    }
+
+    [Theory]
+    [InlineData(SyncMode.Bidirectional)]
+    [InlineData(SyncMode.FirstToSecond)]
+    [InlineData(SyncMode.SecondToFirst)]
+    public void Synchronize_SamePathForBothRoots_IsNoOpRegardlessOfMode(SyncMode mode)
+    {
+        var fileSystem = new MockFileSystem();
+        fileSystem.AddFile(@"C:\game\save.dat", MockFile.Text("progress", Newer));
+        var synchronizer = new FolderSynchronizer(fileSystem);
+
+        SyncResult result = synchronizer.Synchronize(GameRoot, GameRoot, mode);
+
+        Assert.Equal("progress", fileSystem.File.ReadAllText(@"C:\game\save.dat"));
+        Assert.Equal(SyncDirection.None, Assert.Single(result.Files).Direction);
+    }
+
+    [Fact]
+    public void Synchronize_OneWay_OnlyReplicatesEmptyDirectoriesInThatDirection()
+    {
+        var fileSystem = new MockFileSystem();
+        fileSystem.AddDirectory(@"C:\game\game-only");
+        fileSystem.AddDirectory(@"C:\cloud\cloud-only");
+        var synchronizer = new FolderSynchronizer(fileSystem);
+
+        synchronizer.Synchronize(GameRoot, CloudRoot, SyncMode.FirstToSecond);
+
+        Assert.True(fileSystem.Directory.Exists(@"C:\cloud\game-only"));   // replicated forward
+        Assert.False(fileSystem.Directory.Exists(@"C:\game\cloud-only"));  // not replicated back
+    }
 }
