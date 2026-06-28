@@ -79,7 +79,7 @@ public sealed class Application
         // run succeeds.
         _fileSystem.Directory.CreateDirectory(cloudFolder);
 
-        SyncResult result = _synchronizer.Synchronize(gameFolder, cloudFolder);
+        SyncResult result = _synchronizer.Synchronize(gameFolder, cloudFolder, parsed.Mode);
         WriteSummary(result, gameFolder, cloudFolder);
         return SuccessExitCode;
     }
@@ -97,16 +97,17 @@ public sealed class Application
         writer.WriteLine("Zincked - two-way sync for game save folders.");
         writer.WriteLine();
         writer.WriteLine("Usage:");
-        writer.WriteLine("  Zincked <gameFolder> <cloudFolder>");
-        writer.WriteLine("  Zincked --game <gameFolder> --cloud <cloudFolder>");
+        writer.WriteLine("  Zincked <gameFolder> <cloudFolder> [--mode <both|up|down>]");
+        writer.WriteLine("  Zincked --game <gameFolder> --cloud <cloudFolder> [--mode <both|up|down>]");
         writer.WriteLine();
         writer.WriteLine("Options:");
-        writer.WriteLine("  -g, --game <path>    The local game folder.");
-        writer.WriteLine("  -c, --cloud <path>   The shared cloud folder.");
-        writer.WriteLine("  -h, --help           Show this help.");
+        writer.WriteLine("  -g, --game <path>         The local game folder.");
+        writer.WriteLine("  -c, --cloud <path>        The shared cloud folder.");
+        writer.WriteLine("  -m, --mode <both|up|down> Sync direction: both (default, two-way),");
+        writer.WriteLine("                            up (game -> cloud), down (cloud -> game).");
+        writer.WriteLine("  -h, --help                Show this help.");
         writer.WriteLine();
         writer.WriteLine("The folders may be given positionally or by option, in any order.");
-        writer.WriteLine("Both folders are synchronized in both directions; the newer copy of");
-        writer.WriteLine("each file wins. Files are never deleted.");
+        writer.WriteLine("The newer copy of each file wins, and files are never deleted.");
     }
 }

@@ -42,6 +42,21 @@ public sealed class ApplicationTests
     }
 
     [Fact]
+    public void Run_ModeOption_IsForwardedToSynchronizer()
+    {
+        var synchronizer = Substitute.For<IFolderSynchronizer>();
+        synchronizer.Synchronize(GameRoot, CloudRoot, SyncMode.FirstToSecond).Returns(new SyncResult([]));
+        var fileSystem = new MockFileSystem();
+        fileSystem.AddDirectory(GameRoot);
+        var application = NewApplication(synchronizer, fileSystem, out _, out _);
+
+        int exitCode = application.Run([GameRoot, CloudRoot, "--mode", "up"]);
+
+        Assert.Equal(Application.SuccessExitCode, exitCode);
+        synchronizer.Received(1).Synchronize(GameRoot, CloudRoot, SyncMode.FirstToSecond);
+    }
+
+    [Fact]
     public void Run_MissingCloudFolder_IsCreatedBeforeSync()
     {
         var synchronizer = Substitute.For<IFolderSynchronizer>();

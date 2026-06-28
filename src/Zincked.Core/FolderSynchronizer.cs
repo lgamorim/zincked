@@ -3,10 +3,10 @@ using System.IO.Abstractions;
 namespace Zincked.Core;
 
 /// <summary>
-/// Two-way, additive folder synchronizer. For every file found under either root the copy
-/// with the newer last-write time is propagated to the other side; files are never deleted.
-/// All file-system access goes through <see cref="IFileSystem"/> so the engine is fully
-/// testable without touching the real disk.
+/// Additive folder synchronizer. For every file found under either root the copy with the
+/// newer last-write time is propagated to the other side, subject to the requested
+/// <see cref="SyncMode"/>; files are never deleted. All file-system access goes through
+/// <see cref="IFileSystem"/> so the engine is fully testable without touching the real disk.
 /// </summary>
 public sealed class FolderSynchronizer : IFolderSynchronizer
 {
@@ -36,7 +36,7 @@ public sealed class FolderSynchronizer : IFolderSynchronizer
     }
 
     /// <inheritdoc />
-    public SyncResult Synchronize(string firstFolder, string secondFolder)
+    public SyncResult Synchronize(string firstFolder, string secondFolder, SyncMode mode = SyncMode.Bidirectional)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(firstFolder);
         ArgumentException.ThrowIfNullOrWhiteSpace(secondFolder);
@@ -53,6 +53,9 @@ public sealed class FolderSynchronizer : IFolderSynchronizer
             return BuildSelfSyncResult(firstRoot);
         }
 
+        bool allowFirstToSecond = mode is SyncMode.Bidirectional or SyncMode.FirstToSecond;
+        bool allowSecondToFirst = mode is SyncMode.Bidirectional or SyncMode.SecondToFirst;
+
         Dictionary<string, string> firstFiles = EnumerateRelativeFiles(firstRoot);
         Dictionary<string, string> secondFiles = EnumerateRelativeFiles(secondRoot);
 
@@ -65,17 +68,19 @@ public sealed class FolderSynchronizer : IFolderSynchronizer
             SyncDirection direction;
             if (inFirst && !inSecond)
             {
-                CopyFile(firstPath!, _fileSystem.Path.Combine(secondRoot, relativePath));
-                direction = SyncDirection.FirstToSecond;
+                direction = CopyIfAllowed(
+                    firstPath!, _fileSystem.Path.Combine(secondRoot, relativePath),
+                    SyncDirection.FirstToSecond, allowFirstToSecond);
             }
             else if (!inFirst && inSecond)
             {
-                CopyFile(secondPath!, _fileSystem.Path.Combine(firstRoot, relativePath));
-                direction = SyncDirection.SecondToFirst;
+                direction = CopyIfAllowed(
+                    secondPath!, _fileSystem.Path.Combine(firstRoot, relativePath),
+                    SyncDirection.SecondToFirst, allowSecondToFirst);
             }
             else
             {
-                direction = Reconcile(firstPath!, secondPath!);
+                direction = Reconcile(firstPath!, secondPath!, allowFirstToSecond, allowSecondToFirst);
             }
 
             outcomes.Add(new SyncedFile(relativePath, direction));
@@ -83,8 +88,15 @@ public sealed class FolderSynchronizer : IFolderSynchronizer
 
         if (_options.ReplicateEmptyDirectories)
         {
-            ReplicateDirectories(firstRoot, secondRoot);
-            ReplicateDirectories(secondRoot, firstRoot);
+            if (allowFirstToSecond)
+            {
+                ReplicateDirectories(firstRoot, secondRoot);
+            }
+
+            if (allowSecondToFirst)
+            {
+                ReplicateDirectories(secondRoot, firstRoot);
+            }
         }
 
         return new SyncResult(outcomes);
@@ -119,7 +131,11 @@ public sealed class FolderSynchronizer : IFolderSynchronizer
         return keys.OrderBy(k => k, PathComparer);
     }
 
-    private SyncDirection Reconcile(string firstPath, string secondPath)
+    private SyncDirection Reconcile(
+        string firstPath,
+        string secondPath,
+        bool allowFirstToSecond,
+        bool allowSecondToFirst)
     {
         DateTime firstTime = _fileSystem.File.GetLastWriteTimeUtc(firstPath);
         DateTime secondTime = _fileSystem.File.GetLastWriteTimeUtc(secondPath);
@@ -130,14 +146,24 @@ public sealed class FolderSynchronizer : IFolderSynchronizer
             return SyncDirection.None;
         }
 
-        if (firstTime > secondTime)
+        return firstTime > secondTime
+            ? CopyIfAllowed(firstPath, secondPath, SyncDirection.FirstToSecond, allowFirstToSecond)
+            : CopyIfAllowed(secondPath, firstPath, SyncDirection.SecondToFirst, allowSecondToFirst);
+    }
+
+    private SyncDirection CopyIfAllowed(
+        string sourcePath,
+        string destinationPath,
+        SyncDirection direction,
+        bool allowed)
+    {
+        if (!allowed)
         {
-            CopyFile(firstPath, secondPath);
-            return SyncDirection.FirstToSecond;
+            return SyncDirection.None;
         }
 
-        CopyFile(secondPath, firstPath);
-        return SyncDirection.SecondToFirst;
+        CopyFile(sourcePath, destinationPath);
+        return direction;
     }
 
     private void CopyFile(string sourcePath, string destinationPath)

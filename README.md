@@ -10,8 +10,10 @@ point it at your local **game folder** and a shared **cloud folder** (for exampl
 OneDrive, Dropbox, Google Drive, or network-share folder that both computers can
 see), and it keeps the two in sync.
 
-Synchronization is **two-way**: for every file, the newer copy wins and is copied
-to the other side. Subfolders are included. Files are **never deleted** — Zincked
+By default synchronization is **two-way**: for every file, the newer copy wins and
+is copied to the other side. You can also limit it to one direction — only push
+your local saves up to the cloud, or only pull cloud saves down — using the
+`--mode` option. Subfolders are included. Files are **never deleted** — Zincked
 only ever adds or updates, so there's no risk of it wiping out a save.
 
 This is an early alpha, so you run it by hand whenever you want to sync.
@@ -48,11 +50,20 @@ Zincked --game <gameFolder> --cloud <cloudFolder>
 
 ### Options
 
-| Option            | Description            |
-| ----------------- | ---------------------- |
-| `-g`, `--game`    | The local game folder. |
-| `-c`, `--cloud`   | The shared cloud folder. |
-| `-h`, `--help`    | Show help and exit.    |
+| Option                      | Description            |
+| --------------------------- | ---------------------- |
+| `-g`, `--game`              | The local game folder. |
+| `-c`, `--cloud`             | The shared cloud folder. |
+| `-m`, `--mode <both\|up\|down>` | Sync direction (see below). Defaults to `both`. |
+| `-h`, `--help`              | Show help and exit.    |
+
+The `--mode` values are:
+
+- `both` — two-way sync, the newer copy of each file wins (the default).
+- `up` — push only: copy from the **game** folder to the **cloud** folder; the
+  game folder is never modified.
+- `down` — pull only: copy from the **cloud** folder to the **game** folder; the
+  cloud folder is never modified.
 
 If the cloud folder doesn't exist yet, Zincked creates it for you. If the game
 folder doesn't exist, it stops and tells you, so a typo can't quietly sync the
@@ -70,6 +81,13 @@ The same thing using named options:
 
 ```
 Zincked --game "C:\Games\MyGame\Saves" --cloud "C:\Users\me\OneDrive\GameSaves\MyGame"
+```
+
+Push only — after playing on this computer, send your saves up to the cloud
+(use `--mode down` on the other computer to pull them before playing):
+
+```
+Zincked "C:\Games\MyGame\Saves" "C:\Users\me\OneDrive\GameSaves\MyGame" --mode up
 ```
 
 When it finishes, Zincked prints a short summary of how many files it copied each
